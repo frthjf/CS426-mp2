@@ -573,16 +573,34 @@ void CgenClassTable::code_classes(CgenNode *c)
 //
 void CgenClassTable::code_main()
 {
-	// Define a function main that has no parameters and returns an i32
+    CgenEnvironment cenv(*ct_stream, root()); // FIXME in order to use new_name()
 
+    op_type i32_type(INT32), i32ptr_type(INT32_PTR), i8_type(INT8), i8ptr_type(INT8_PTR);
+    ValuePrinter vp(*ct_stream);
+    // Define the printout string of main function
+    const_value val(i8_type, "Main_main() returned %d\n", 1);
+    vp.init_constant(*ct_stream, "main.printout.str", val); // FIXME lacking [25 x i8] align 1
+
+	// Define a function main that has no parameters and returns an i32
+    vector<operand> main_args;
+    vp.define(*ct_stream, i32_type, "main", main_args);
+    
 	// Define an entry basic block
+    vp.begin_block("entry");
 
 	// Call Main_main(). This returns int* for phase 1, Object for phase 2
-
-
+    vector<op_type> mainmain_args_types;
+    vector<operand> mainmain_args;
+    operand ret = vp.call(mainmain_args_types, i32_type, "Main_main", 1, mainmain_args);
+    
+    
 #ifndef MP3
 	// Get the address of the string "Main_main() returned %d\n" using
-	// getelementptr 
+	// getelementptr
+    operand result(i8ptr_type, cenv.new_name()), op1(i8ptr_type, "@main.printout.str"), op2(i32_type, "0"), op3(i32_type, "0"); 
+    vp.getelementptr(*ct_stream, i8_type, op1, op2, op3, result);
+
+    
 
 	// Call printf with the string address of "Main_main() returned %d\n"
 	// and the return value of Main_main() as its arguments
