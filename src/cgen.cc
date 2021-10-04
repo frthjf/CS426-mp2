@@ -336,7 +336,7 @@ void CgenClassTable::install_classes(Classes cs)
 // 
 void CgenClassTable::install_class(CgenNode *nd)
 {
-	Symbol name = nd->get_name(); // FIXME where is the get_name method for CgenNode??
+	Symbol name = nd->get_name(); // FIXME where is the get_name() method of CgenNode?
 
 	if (probe(name))
 		return;
@@ -573,7 +573,7 @@ void CgenClassTable::code_classes(CgenNode *c)
 //
 void CgenClassTable::code_main()
 {
-    CgenEnvironment cenv(*ct_stream, root()); // FIXME in order to use new_name()
+    // CgenEnvironment cenv(*ct_stream, root()); // in order to use new_name()
 
     op_type i32_type(INT32), i8_type(INT8), i8ptr_type(INT8_PTR), vararg_type(VAR_ARG);
     ValuePrinter vp(*ct_stream);
@@ -581,7 +581,7 @@ void CgenClassTable::code_main()
     // Define the printout string of main function
     op_arr_type str_type(INT8, 25);
     op_arr_ptr_type str_ptr_type(INT8, 25);
-    const_value val_const(str_type, "Main_main() returned %d\n", 1);
+    const_value val_const(str_type, "Main.main() returned %d\n", 1);
     global_value val_g(str_ptr_type, "main.printout.str", val_const);
     vp.init_constant(*ct_stream, "main.printout.str", val_const); // lacking align 1 
 
@@ -592,7 +592,7 @@ void CgenClassTable::code_main()
 	// Define an entry basic block
     vp.begin_block("entry");
 
-	// Call Main_main(). This returns int* for phase 1, Object for phase 2
+	// Call Main.main(). This returns int* for phase 1, Object for phase 2
     vector<op_type> mainmain_args_types;
     vector<operand> mainmain_args;
     operand ret = vp.call(mainmain_args_types, i32_type, "Main_main", 1, mainmain_args);
@@ -602,16 +602,16 @@ void CgenClassTable::code_main()
 	// Get the address of the string "Main_main() returned %d\n" using
 	// getelementptr
     int_value zero(0);
-    operand result(i8ptr_type, cenv.new_name()); // FIXME %tmp or %tpm.0 
-    vp.getelementptr(*ct_stream, str_type, val_g, zero, zero, result);
+    operand str_ptr(i8ptr_type, "tpm"); // to coform the reference ll 
+    vp.getelementptr(*ct_stream, str_type, val_g, zero, zero, str_ptr);
 
-	// Call printf with the string address of "Main_main() returned %d\n"
+	// Call printf with the string address of "Main.main() returned %d\n"
 	// and the return value of Main_main() as its arguments
     vector<op_type> printf_args_types;
     printf_args_types.push_back(i8ptr_type);
     printf_args_types.push_back(vararg_type);
     vector<operand> printf_args;
-    printf_args.push_back(result);
+    printf_args.push_back(str_ptr);
     printf_args.push_back(ret);
     operand ret_printf = vp.call(printf_args_types, i32_type, "printf", 1, printf_args);
 
@@ -814,35 +814,26 @@ operand get_class_tag(operand src, CgenNode *src_cls, CgenEnvironment *env) {
 void method_class::code(CgenEnvironment *env)
 {
 	if (cgen_debug) std::cerr << "method" << endl;
+    assert(return_type == Int); // for MP2, the return type must be Int
     ValuePrinter vp(*(env->cur_stream));
-	// ADD CODE HERE
+	
 	// MP2 supports main method only 
 	// Construct the signature first
-	// Set up return type
-    string ret_type_id = this->return_type->get_string();
+	// Set up return type ADD CODE for MP3 
     op_type ret_type; 
     op_type i32_type(INT32); // Only support Int for MP2
-    if (ret_type_id.compare("Int") == 0) ret_type.set_type(i32_type);
+    if (return_type == Int) ret_type.set_type(i32_type);
     // Construct the argument list 
-    // For MP2 it is empty for the main method 
+    // For MP2 it is empty for the Main_main method 
     vector<operand> main_args;
     vp.define(ret_type, "Main_main", main_args); 
     // Create a new basic block entry
     vp.begin_block("entry"); 
     // Code generation for expression
-    /*
-    string expr_type = expr->type->get_string();
-    if (expr_type.compare("_int")) {
-        // It's safe for MP2 to directly return the int constant
-        vp.ret(((int_const_class*)expr)->code(env));
-    } else {
-        expr->code(env);    
-    }
-    */
     operand ret_value = expr->code(env);
-    // if (ret.get_typename().compare(ret_type.get_name()) == 0) vp.ret(ret.get_intvalue());
+    // Return 
     vp.ret(ret_value); 
-    // Call abort to finish the method
+    // Construct abort block to finish the method or handle errors
     vp.begin_block("abort"); 
     vector<operand> abort_args;
     vector<op_type> abort_args_type;
@@ -851,8 +842,6 @@ void method_class::code(CgenEnvironment *env)
     vp.unreachable(); 
 
     vp.end_define(); 
-// CgenEnvironment mainMethodEnv(*(this->class_table->ct_stream), this);
-// mainMethod->code(&mainMethodEnv);     
 }
 
 //
@@ -862,8 +851,6 @@ void method_class::code(CgenEnvironment *env)
 operand assign_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "assign" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp;
 	operand val = expr->code(env);
     operand ptr = *(env->lookup(name));
@@ -875,8 +862,6 @@ operand assign_class::code(CgenEnvironment *env)
 operand cond_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "cond" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp(*(env->cur_stream)); 
 	operand ret_ptr; 
     op_type ret_type; 
@@ -893,8 +878,8 @@ operand cond_class::code(CgenEnvironment *env)
     // Generate code for predictive
     operand pred_op = pred->code(env);
     // Create label for 'then', 'else', and 'end' block
-    string then_label = env->new_label("then", false);
-    string else_label = env->new_label("else", false);
+    string then_label = env->new_label("true", false);
+    string else_label = env->new_label("false", false);
     string end_label = env->new_label("end", true);  
     // Branch conditionally to 'then' or 'else' block
     vp.branch_cond(pred_op, then_label, else_label);
@@ -919,11 +904,10 @@ operand cond_class::code(CgenEnvironment *env)
 operand loop_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "loop" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp(*(env->cur_stream)); 
     // Create the predictive label, true block label, and false block label
-    string pred_label = env->new_label("loop", false); // FIXME increment or not??
+    // Use the same number surfix for a loop or a if-then-else
+    string pred_label = env->new_label("loop", false); 
     string true_label = env->new_label("true", false);
     string false_label = env->new_label("false", true);     
     // Jump to the predictive evaluation block
@@ -940,7 +924,7 @@ operand loop_class::code(CgenEnvironment *env)
     // Construct the false block
     vp.begin_block(false_label);
     
-    return int_value(0); // for MP2 
+    return int_value(0); // for MP2  
 } 
 
 operand block_class::code(CgenEnvironment *env) 
@@ -964,20 +948,20 @@ operand let_class::code(CgenEnvironment *env)
     op_type init_type;
     // Check for uninitialized let bindings 
     // Should work for only Int and Bool, think more when Object is added
-    if (init_op.get_typename().compare("") == 0) {
-        string type_name = type_decl->get_string();
-        if (type_name.compare("Int") == 0) {
+    if (init_op.is_empty()) {
+        if (type_decl == Int) {
             init_type.set_type(op_type(INT32));
-            init_op = int_value(0);
-        } else if (type_name.compare("Bool") == 0) {
+            init_op = int_value(0); // default initialization to 0
+        } else if (type_decl == Bool) {
             init_type.set_type(op_type(INT1));
-            init_op = bool_value(0, true);
+            init_op = bool_value(0, 1); // default initialization to false  
         } else {
            assert(0 && "Unsupported case for MP2");
         }
     } else {
         init_type = init_op.get_type();
     }
+    // Create new pointer operand, allocate on stack, and store initial value
     operand ptr(init_type.get_ptr_type(), env->new_name());
     vp.alloca_mem(*(env->cur_stream), init_type, ptr); 
     vp.store(*(env->cur_stream), init_op, ptr);
@@ -994,8 +978,6 @@ operand let_class::code(CgenEnvironment *env)
 operand plus_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "plus" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
     ValuePrinter vp;
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
@@ -1007,8 +989,6 @@ operand plus_class::code(CgenEnvironment *env)
 operand sub_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "sub" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp;
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
@@ -1020,8 +1000,6 @@ operand sub_class::code(CgenEnvironment *env)
 operand mul_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "mul" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp;
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
@@ -1033,8 +1011,6 @@ operand mul_class::code(CgenEnvironment *env)
 operand divide_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "div" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp(*(env->cur_stream));
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
@@ -1054,9 +1030,8 @@ operand divide_class::code(CgenEnvironment *env)
 operand neg_class::code(CgenEnvironment *env) 
 { 
 	if (cgen_debug) std::cerr << "neg" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
-	ValuePrinter vp;
+	// ~Int (-n = 0-n)
+    ValuePrinter vp;
     int_value op1(0);
     operand op2 = e1->code(env);
     operand result(op2.get_type(), env->new_name());
@@ -1067,11 +1042,10 @@ operand neg_class::code(CgenEnvironment *env)
 operand lt_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "lt" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
     ValuePrinter vp;
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
+    // result must be Bool
     operand result(op_type(INT1), env->new_name()); 
 	vp.icmp(*(env->cur_stream), LT, op1, op2, result);
     return result;
@@ -1080,11 +1054,10 @@ operand lt_class::code(CgenEnvironment *env)
 operand eq_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "eq" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp;
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
+    // result must be Bool
     operand result(op_type(INT1), env->new_name()); 
 	vp.icmp(*(env->cur_stream), EQ, op1, op2, result);
     return result;
@@ -1093,11 +1066,10 @@ operand eq_class::code(CgenEnvironment *env)
 operand leq_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "leq" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	ValuePrinter vp;
     operand op1 = e1->code(env);
     operand op2 = e2->code(env);
+    // result must be Bool
     operand result(op_type(INT1), env->new_name()); 
 	vp.icmp(*(env->cur_stream), LE, op1, op2, result);
     return result;
@@ -1106,38 +1078,34 @@ operand leq_class::code(CgenEnvironment *env)
 operand comp_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "complement" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
+    // not Bool 
 	ValuePrinter vp;
     operand op1 = e1->code(env);
     operand result(op1.get_type(), env->new_name());
-    vp.xor_in(*(env->cur_stream), op1, op1, result);
+    // Use xor to revert the Bool value 
+    vp.xor_in(*(env->cur_stream), op1, bool_value(1, 1), result);
     return result; 
 }
 
 operand int_const_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "Integer Constant" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	return int_value(atoi(token->get_string()));
 }
 
 operand bool_const_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "Boolean Constant" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
-	return bool_value(val, true); // FIXME Is boolean internal or not? 
+	return bool_value(val, 1);  
 }
 
 operand object_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "Object" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
     ValuePrinter vp;
+    // Check symbol table for the object name
     operand ptr = *(env->lookup(name));
+    // Load value for use
     op_type val_type = ptr.get_type().get_deref_type();
     operand val(val_type, env->new_name());
     vp.load(*(env->cur_stream), val_type, ptr, val);
@@ -1147,8 +1115,6 @@ operand object_class::code(CgenEnvironment *env)
 operand no_expr_class::code(CgenEnvironment *env) 
 {
 	if (cgen_debug) std::cerr << "No_expr" << endl;
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
 	// Leave it as it is for MP2, handle it in 'let'
 	return operand();
 }
