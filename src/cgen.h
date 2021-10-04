@@ -10,6 +10,15 @@
 
 // ------------------ INSERT DESIGN DOCUMENTATION HERE --------------------- //
 
+/*
+ * This file is not modified in MP2. All changes are made in cgen.cc. 
+ * Please see the detailed comments there for code_main(), codeGenMainmain(),
+ * and code() methods for types of nodes (Elem_class). 
+ * 
+ * Since there is only one class Main which has only one method in MP2, 
+ * no structures for classes, inheritance, or dynamic binding is handled. 
+ *
+ */
 
 // ----------------------------- END DESIGN DOCS --------------------------- //
 
