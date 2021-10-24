@@ -172,9 +172,98 @@ void CgenClassTable::setup_external_functions()
 	malloc_args.push_back(i32_type);
 	vp.declare(*ct_stream, i8ptr_type, "malloc", malloc_args);
 
-#ifdef MP3
+ #ifdef MP3  
 	//ADD CODE HERE
 	//Setup external functions for built in object class functions
+	// declare pointer types for basic class objects
+	op_type obj_ptr_type("Object", 1), int_ptr_type("Int", 1), io_ptr_type("IO", 1), bool_ptr_type("Bool", 1), str_ptr_type("String", 1); 
+    // setup function: %Object* Object_new()
+    vector<op_type> Object_new_args; 
+    vp.declare(*ct_stream, obj_ptr_type, "Object_new", Object_new_args); 
+
+    // setup function: %Object* Object_abort(%Object*)
+    vector<op_type> Object_abort_args;
+    Object_abort_args.push_back(obj_ptr_type); 
+    vp.declare(*ct_stream, obj_ptr_type, "Object_abort", Object_abort_args); 
+
+    // setup function: %String* Object_type_name(%Object*)
+	vector<op_type> Object_type_name_args; 
+    Object_type_name_args.push_back(obj_ptr_type);
+    vp.declare(*ct_stream, str_ptr_type, "Object_type_name", Object_type_name_args); 
+    
+    // setup function: %Object* Object_copy(%Object*)
+    vector<op_type> Object_copy_args; 
+    Object_copy_args.push_back(obj_ptr_type);
+    vp.declare(*ct_stream, obj_ptr_type, "Object_copy", Object_copy_args); 
+
+    // setup function: %IO* IO_new()
+    vector<op_type> IO_new_args; 
+    vp.declare(*ct_stream, io_ptr_type, "IO_new", IO_new_args); 
+
+    // setup function: %IO* IO_out_string(IO*, String*)
+    vector<op_type> IO_out_string_args; 
+    IO_out_string_args.push_back(io_ptr_type);
+    IO_out_string_args.push_back(str_ptr_type); 
+    vp.declare(*ct_stream, io_ptr_type, "IO_out_string", IO_out_string_args);
+
+    // setup function: IO* IO_out_int(IO*, i32)
+    vector<op_type> IO_out_int_args;
+    IO_out_int_args.push_back(io_ptr_type);
+    IO_out_int_args.push_back(i32_type); 
+    vp.declare(*ct_stream, io_ptr_type, "IO_out_int", IO_out_int_args); 
+
+    // setup function: String* IO_in_string(IO*)
+    vector<op_type> IO_in_string_args;
+    IO_in_string_args.push_back(io_ptr_type);
+    vp.declare(*ct_stream, str_ptr_type, "IO_in_string", IO_in_string_args);
+
+    // setup function: i32 IO_in_int(IO*)
+    vector<op_type> IO_in_int_args; 
+    IO_in_int_args.push_back(io_ptr_type);
+    vp.declare(*ct_stream, i32_type, "IO_in_int", IO_in_int_args); 
+
+    // setup function: String* String_new()
+    vector<op_type> String_new_args; 
+    vp.declare(*ct_stream, str_ptr_type, "String_new", String_new_args); 
+
+    // setup function: i32 String_length(String*)
+    vector<op_type> String_length_args; 
+    String_length_args.push_back(str_ptr_type); 
+    vp.declare(*ct_stream, i32_type, "String_length", String_length_args); 
+
+    // setup function: String* String_concat(String*, String*)
+    vector<op_type> String_concat_args; 
+    String_concat_args.push_back(str_ptr_type);
+    String_concat_args.push_back(str_ptr_type);
+    vp.declare(*ct_stream, str_ptr_type, "String_concat", String_concat_args);
+
+    // setup function: String* String_substr(String*, i32, i32)
+    vector<op_type> String_substr_args;
+    String_substr_args.push_back(str_ptr_type);
+    String_substr_args.push_back(i32_type);
+    String_substr_args.push_back(i32_type);
+    vp.declare(*ct_stream, str_ptr_type, "String_substr", String_substr_args); 
+
+    // setup function: Int* Int_new()
+    vector<op_type> Int_new_args; 
+    vp.declare(*ct_stream, int_ptr_type, "Int_new", Int_new_args);
+   
+    // setup function: void Int_init(Int*, i32)
+    vector<op_type> Int_init_args;
+    Int_init_args.push_back(int_ptr_type);
+    Int_init_args.push_back(i32_type);
+    vp.declare(*ct_stream, void_type, "Int_init", Int_init_args); 
+
+    // setup function: Bool* Bool_new()
+    vector<op_type> Bool_new_args;
+    vp.declare(*ct_stream, bool_ptr_type, "Bool_new", Bool_new_args);
+    
+    // setup function: void Bool_init(Bool*, i1)
+    vector<op_type> Bool_init_args; 
+    Bool_init_args.push_back(bool_ptr_type);
+    op_type i1_type(INT1); 
+    Bool_init_args.push_back(i1_type); 
+    vp.declare(*ct_stream, void_type, "Bool_init", Bool_init_args); 
 #endif
 }
 
@@ -520,7 +609,7 @@ void CgenClassTable::setup_classes(CgenNode *c, int depth)
 	// MAY ADD CODE HERE
 	// if you want to give classes more setup information
 
-	c->setup(current_tag++, depth);
+	c->setup(current_tag++, depth); // FIXME what to do with depth? 
 	List<CgenNode> *children = c->get_children();
 	for (List<CgenNode> *child = children; child; child = child->tl())
 		setup_classes(child->hd(), depth + 1);
@@ -562,6 +651,7 @@ void CgenClassTable::code_classes(CgenNode *c)
 {
 
 	// ADD CODE HERE
+	if (c->basic()) return; 
 
 }
 #endif
@@ -638,6 +728,11 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTable *ct)
 { 
 	// ADD CODE HERE
 	// similar to CgenClassTable, call functions to generate code for a class
+	mtd_tbl.enterscope();
+    attr_tbl.enterscope();
+    
+    attr_index = 1; // account for vtable
+    mtd_index = 4;  // account for tag, ptrtoint, getelementptr, new 
 }
 
 void CgenNode::add_child(CgenNode *n)
@@ -669,7 +764,12 @@ void CgenNode::setup(int tag, int depth)
 	layout_features();
 
 	// ADD CODE HERE
-
+	ValuePrinter vp; 
+        
+    vp.type_define(*(this->class_table->ct_stream), this->get_type_name(), cls_record);
+    vp.type_define(*(this->class_table->ct_stream), this->get_type_name()+"_vtable", vtable); 
+    global_value prototype(op_type(this->get_type_name()+"_vtable"), this->get_type_name()+"_vtable_prototype"); 
+    vp.init_struct_constant(*(this->class_table->ct_stream), prototype, vtable, vtable_prototype); 
 #endif
 }
 
@@ -692,6 +792,84 @@ void CgenNode::code_class()
 void CgenNode::layout_features()
 {
 	// ADD CODE HERE
+	// create str.Class constant
+	ValuePrinter vp; 
+    op_arr_type str_type(INT8, this->get_type_name().length()+1);
+    // op_arr_ptr_type str_ptr_type(INT8, this->get_type_name().length()+1);
+    const_value val_const(str_type, this->get_type_name(), 1);
+    // cerr << val_const.get_value() << endl;
+    // cerr << val_const.get_typename() << endl; 
+    // cerr << val_const.get_type().get_id() << endl; 
+    // global_value val_g(str_ptr_type, "str."+this->get_type_name(), val_const); 
+    vp.init_constant(*(this->class_table->ct_stream), "str."+this->get_type_name(), val_const); // lacking align 1	
+    cerr << "after init_constant" << endl; // FIXME    
+
+    op_type i32_type(INT32), i8_ptr_type(INT8_PTR), obj_ptr_type("Object", 1);  
+    // handle Object class
+    if (this->get_type_name() == std::string("Object")) {
+        cls_record.push_back(op_type("Object_vtable", 1)); 
+        vtable.push_back(i32_type);
+        vtable_prototype.push_back(int_value(tag));
+        vtable_ptr.push_back(NULL); // no need to save pointers to not casted_value type
+        vtable.push_back(i32_type);
+        vtable_prototype.push_back(const_value(i32_type,"ptrtoint (%"+get_type_name()+"* getelementptr (%"+get_type_name()+", %"+get_type_name()+"* null, i32 1) to i32)", 1));
+        vtable_ptr.push_back(NULL);
+        vtable.push_back(i8_ptr_type);
+        const_value str_Class(str_type, "@str."+this->get_type_name(), 1); 
+        vtable_prototype.push_back(str_Class); 
+        vtable_ptr.push_back(NULL);
+        // add Object_new in vtable
+        vector<op_type> obj_new_args; 
+        op_func_type obj_new(obj_ptr_type, obj_new_args);
+        vtable.push_back(obj_new);
+        vtable_prototype.push_back(const_value(op_type(get_type_name(),1), "@"+get_type_name()+"_new", 1)); 
+        vtable_ptr.push_back(NULL);
+        list_node<Feature> *obj_fl = features;
+        for (int j = obj_fl->first(); obj_fl->more(j); j = obj_fl->next(j)) {
+            obj_fl->nth(j)->layout_feature(this); 
+        }
+        
+    } else {
+        // copy the class record of the parent while change the name of vtable
+        // cls_record = parentnd->cls_record;
+        // cls_record.erase(cls_record.begin());
+        cls_record.push_back(op_type(this->get_type_name()+std::string("_vtable"), 1));
+        // copy the vtable of the parent class
+        vtable.push_back(i32_type);
+        vtable_prototype.push_back(int_value(tag));
+        vtable_ptr.push_back(NULL);
+        vtable.push_back(i32_type);
+        vtable_prototype.push_back(const_value(i32_type,"ptrtoint (%"+get_type_name()+"* getelementptr (%"+get_type_name()+", %"+get_type_name()+"* null, i32 1) to i32)", 1));  
+        vtable_ptr.push_back(NULL);  
+        vtable.push_back(i8_ptr_type);
+        const_value str_Class(str_type, "@str."+this->get_type_name(), 1); 
+        vtable_prototype.push_back(str_Class);
+        vtable_ptr.push_back(NULL); 
+        // add Class_new in the vtable
+        vector<op_type> new_args; 
+        op_func_type cls_new(op_type(get_type_name(), 1), new_args);
+        vtable.push_back(cls_new);
+        vtable_prototype.push_back(const_value(op_type(get_type_name(),1), "@"+get_type_name()+"_new", 1));
+        vtable_ptr.push_back(NULL); 
+        // go through the parents' feature list and add appropriate method signature
+        list_node<Feature> *pfl = nil_Features();
+        for (CgenNode *p = parentnd; p->get_type_name().compare("_no_class") != 0; p = p->parentnd) {
+            
+            pfl = pfl->append(p->features, pfl);
+            // pfl->dump(cout, 2); 
+        }
+        for (int k = pfl->first(); pfl->more(k); k = pfl->next(k)) {
+            pfl->nth(k)->layout_feature(this);
+        }        
+        // go through the feature list, add attributes and methods into cls_record or vtable
+	    list_node<Feature> *fl = features;
+        // fl->dump(cout,2); 
+        for (int i = fl->first(); fl->more(i); i = fl->next(i)) {
+            fl->nth(i)->layout_feature(this);
+        }
+    }
+    mtd_tbl.dump(); 
+    attr_tbl.dump();  
 }
 #else
 
@@ -1197,14 +1375,96 @@ operand isvoid_class::code(CgenEnvironment *env)
 #endif
 	return operand();
 }
-
+/*
+op_type interpret_type(Symbol type) {
+    if (type == Int) 
+        return op_type(INT32);
+    else if (type == Bool) 
+        return op_type(INT1);
+    else return op_type(type->get_string(), 1);
+}
+*/
+ 
 // Create the LLVM Function corresponding to this method.
+
 void method_class::layout_feature(CgenNode *cls) 
 {
 #ifndef MP3
 	assert(0 && "Unsupported case for phase 1");
 #else
 	// ADD CODE HERE
+    	
+    // go through the formal list and form a vector of formal types
+    vector<op_type> args;
+    args.push_back(op_type(cls->get_type_name(), 1)); 
+    for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
+            Symbol type = ((formal_class *)formals->nth(i))->get_type();
+            if (type == Int) 
+                args.push_back(op_type(INT32));
+            else if (type == Bool)
+                args.push_back(op_type(INT1));
+            else
+                args.push_back(op_type(type->get_string(), 1));
+    }
+
+    // get the return type and put a function type pointer in vtable
+    op_type ret; 
+    if (return_type == Int) 
+        ret.set_type(op_type(INT32));
+    else if (return_type == Bool)
+        ret.set_type(op_type(INT1));  
+    else if (return_type == SELF_TYPE)
+        ret.set_type(op_type(cls->get_type_name(), 1));  
+    else
+        ret.set_type(op_type(return_type->get_string(), 1)); 
+
+    op_func_type t(ret, args); 
+
+    // check for inherited method 
+    // if a method is already in vtable, then we know it is inherited and will be overwritten
+    if (cls->lookup_mtd(name) != NULL) {
+        // detect its entry in vtable_prototype (in bitcast form) and reinsert it in normal form
+        cls->vtable_prototype.erase(cls->vtable_prototype.begin()+*(cls->lookup_mtd(name)));
+        cls->vtable_prototype.insert(cls->vtable_prototype.begin()+*(cls->lookup_mtd(name)), const_value(ret, "@"+cls->get_type_name()+"_"+name->get_string(), 1)); 
+    } else { // if a method is not found in vtable
+        int *index = new int(cls->get_mtd_index()); // FIXME when to delete?  
+        cls->add_mtd(name, index);
+        cls->incre_mtd_index();
+        cls->vtable.push_back(t); 
+        // check if it is a method of the paretn class
+        // if yes
+        string precast_name; 
+        if (cls->get_parentnd()->lookup_mtd(name) != NULL) {
+            CgenNode *p = cls->get_parentnd();
+            cerr << cls->get_type_name() << endl;
+            op_type precast_type; 
+            if ((p->get_type_name().compare("Object") == 0) || p->get_parentnd()->lookup_mtd(name) == NULL) {
+                precast_type.set_type(p->vtable.at(*(p->lookup_mtd(name)))); 
+                precast_name = "@"+p->get_type_name()+"_"+name->get_string(); 
+            } else {
+                 cerr << cls->get_type_name() << endl;
+                cerr << name->get_string() << endl; 
+                 p->get_parentnd()->dump_mtd_tbl();
+                p->dump_vtable_ptr(); 
+                cerr << "after" << endl; 
+                 precast_type = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_precast_type(); // FIXME
+                 string precast_ret = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_typename();
+                 string precast_val = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_value(); 
+                 precast_name = precast_val.substr(10+precast_type.get_name().length(), precast_val.length()-15-precast_type.get_name().length()-precast_ret.length()); 
+            }
+            // vector<op_type> precast_args = args; 
+            // precast_args.erase(precast_args.begin()); 
+            // precast_args.insert(precast_args.begin(), op_type(p->get_type_name(), 1)); 
+            // op_func_type precast_type(ret,
+            casted_value *casted_ptr = new casted_value(t, precast_name, precast_type);
+            cls->vtable_prototype.push_back(*(casted_ptr));
+            cls->vtable_ptr.push_back(casted_ptr);  
+        } else { // if no
+            cls->vtable_prototype.push_back(const_value(ret, "@"+cls->get_type_name()+"_"+name->get_string(), 1));
+            cls->vtable_ptr.push_back(NULL);  
+        }
+    } 
+
 #endif
 }
 
@@ -1228,6 +1488,25 @@ void attr_class::layout_feature(CgenNode *cls)
 	assert(0 && "Unsupported case for phase 1");
 #else
 	// ADD CODE HERE
+	// check for inherited attributes
+	if (cls->lookup_attr(name) != NULL) { return; }
+    else {
+        int *index = new int(cls->get_attr_index()); 
+        cls->add_attr(name, index);
+        cls->incre_attr_index();
+    }
+
+    if (type_decl == prim_int || type_decl == Int) 
+        cls->cls_record.push_back(op_type(INT32));
+    else if (type_decl == prim_bool || type_decl == Bool) 
+        cls->cls_record.push_back(op_type(INT1));
+    else if (type_decl == SELF_TYPE)
+        cls->cls_record.push_back(op_type(cls->get_type_name(), 1));
+    else if (type_decl == prim_string)
+        cls->cls_record.push_back(op_type(INT8_PTR)); 
+    else
+        cls->cls_record.push_back(op_type(type_decl->get_string(), 1));     
+     
 #endif
 }
 
