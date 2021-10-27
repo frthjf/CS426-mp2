@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string>
 #include <string.h>
-#include <ostream>
+#include <iostream> // FIXME added a i
 #include <vector>
 
 using std::string;
@@ -33,6 +33,7 @@ class op_type {
 		op_type(op_type_id i);
 		op_type(string n) : id(OBJ), name("%" + n) {}
 		op_type(string n, int ptr_level);
+        op_type(bool sym_to_type, string str); // convert a Symbol to corresponding op_type  
 		op_type_id get_id() const { return id; }
 		void set_id(op_type_id i) { id = i; }
 		void set_type(op_type t) 
@@ -145,6 +146,8 @@ class const_value : public operand {
 		  : value(val), internal(intr) { type = t; name = value; }
 		bool is_internal() { return internal; }
 		string get_value() { return value; }
+        virtual op_type get_precast_type() { std::cerr << "get_precast_type called from const_value" << std::endl; return op_type(); }
+        virtual ~const_value() {  } // FIXME
 };
 
 class casted_value : public const_value {
@@ -167,6 +170,8 @@ class int_value : public const_value {
 		int_value(int i, bool intr)
 		  : const_value(op_type(INT32), itos(i), intr), i_value(i) {}
 		int get_intvalue() { return i_value; }
+        op_type get_precast_type() { std::cerr << "get_precast_type called from int_value" << std::endl; return op_type(); }
+        // ~int_value() { cerr << "destructor" << endl; }
 };
 
 class bool_value : public const_value {
@@ -177,10 +182,14 @@ class bool_value : public const_value {
 		  : const_value(op_type(INT1), "", intr), b_value(b)
 		  { if (b) value = "true"; else value = "false"; name = value;}
 		int get_boolvalue() { return b_value; }
+       op_type get_precast_type() { std::cerr << "get_precast_type called from bool_value" << std::endl; return op_type(); }
+       // ~bool_value() { cerr << "destructor" << endl; }
 };
 
 class null_value : public const_value {
 	public:
 		null_value(op_type t) : const_value(t, "null", true) {}
+       op_type get_precast_type() { std::cerr << "get_precast_type called from null_value" << std::endl; return op_type(); }
+       // op_type ~null_value() { cerr << "destructor" << endl; }
 };
 #endif

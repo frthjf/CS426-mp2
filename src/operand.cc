@@ -66,6 +66,21 @@ op_type::op_type(string n, int ptr_level) {
 		assert(0 && "Invalid pointer level");
 }	
 
+
+op_type::op_type(bool sym_to_str, string str) {
+    if (str.compare("Bool") == 0 || str.compare("bool") == 0) {
+        id = INT1;
+        name = "i1";
+    } else if (str.compare("Int") == 0 || str.compare("int") == 0) {
+        id = INT32;
+        name = "i32"; 
+    } else {
+        id = OBJ;
+        name = "%"+str;
+    }  
+}
+
+
 /* Get a pointer type of the current type
  */
 op_type op_type::get_ptr_type() {
