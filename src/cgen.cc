@@ -541,6 +541,7 @@ void CgenClassTable::code_constants()
 #ifdef MP3
 
 	// ADD CODE HERE
+	stringtable.code_string_table(*ct_stream, this); 
 #endif
 }
 
@@ -548,7 +549,33 @@ void CgenClassTable::code_constants()
 void StringEntry::code_def(ostream& s, CgenClassTable* ct)
 {
 #ifdef MP3
-	// ADD CODE HERE
+	ValuePrinter vp;
+    // print out @str.n = internal constant ...
+    string name = "str."+std::to_string(index);
+    op_arr_type str_type(INT8, len+1);
+    const_value val_const(str_type, str, 1);
+    vp.init_constant(s, name, val_const);
+
+    // print out @String.n = constant %String{...}
+    string str_obj_name = "String."+std::to_string(index);
+    op_type str_obj_type("String", 1); 
+    global_value str_obj(str_obj_type, str_obj_name); 
+ 
+    vector<op_type> types; 
+    op_type obj_vtable_ptr_type(op_type("String_vtable", 1)), int8_ptr_type(INT8_PTR);
+    types.push_back(obj_vtable_ptr_type); 
+    types.push_back(int8_ptr_type);
+
+    vector<const_value> vals; 
+    const_value str_vtable(obj_vtable_ptr_type, "@String_vtable_prototype", 1);
+    vals.push_back(str_vtable);
+
+    string global_name = "@"+name; 
+    const_value global_val_const(str_type, global_name, 1); 
+    vals.push_back(global_val_const);
+
+    vp.init_struct_constant(s, str_obj, types, vals); 
+
 #endif
 }
 
@@ -583,7 +610,7 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s)
 
 	// First pass
 	setup();
-
+    
 	// Second pass
 	code_module();
 	// Done with code generation: exit scopes
@@ -668,12 +695,14 @@ void CgenClassTable::code_main()
     op_type i32_type(INT32), i8_type(INT8), i8ptr_type(INT8_PTR), vararg_type(VAR_ARG);
     ValuePrinter vp(*ct_stream);
 
+    /*
     // Define the printout string of main function
     op_arr_type str_type(INT8, 25);
     op_arr_ptr_type str_ptr_type(INT8, 25);
     const_value val_const(str_type, "Main.main() returned %d\n", 1);
     global_value val_g(str_ptr_type, "main.printout.str", val_const);
     vp.init_constant(*ct_stream, "main.printout.str", val_const); // lacking align 1 
+    */ 
 
 	// Define a function main that has no parameters and returns an i32
     vector<operand> main_args;
@@ -682,11 +711,58 @@ void CgenClassTable::code_main()
 	// Define an entry basic block
     vp.begin_block("entry");
 
+    // Call Main.new()
+    vector<op_type> new_arg_types;
+    vector<operand> new_args;
+    operand main_obj(op_type("Main", 1), "main_obj");
+    vp.call(*ct_stream, new_arg_types, "Main_new", 1, new_args, main_obj);
+ 
+    // Call Main_main
+    // Locate Main CgenNode
+    Symbol main_sym = idtable.lookup_string("Main");
+    CgenNode *main_node = lookup(main_sym);
+
+    // Locate main method in Main class
+    Symbol mainmain_sym = idtable.lookup_string("main"); 
+    // if (mainmain_sym == NULL) cerr << "mainmain_sym is NULL" << endl;
+    int *index = main_node->lookup_mtd(mainmain_sym); 
+    method_class *Mainmain = main_node->get_mtd(*index);
+    vector<op_type> Mainmain_arg_types;
+    Mainmain_arg_types.push_back(op_type("Main", 1)); 
+    vector<operand> Mainmain_args; 
+    Mainmain_args.push_back(main_obj);
+
+    // get return type 
+    Symbol ret_type_sym = Mainmain->get_return_type();
+    op_type ret_type; 
+    if (string(ret_type_sym->get_string()).compare("SELF_TYPE") == 0)
+        ret_type = op_type("Main", 1); 
+    else 
+        ret_type = op_type(1, ret_type_sym->get_string()); 
+
+/*
+    if (ret_type == prim_int || ret_type == Int) 
+        cls->cls_record.push_back(op_type(INT32));
+    else if (type_decl == prim_bool || type_decl == Bool) 
+        cls->cls_record.push_back(op_type(INT1));
+    else if (type_decl == SELF_TYPE)
+        cls->cls_record.push_back(op_type(cls->get_type_name(), 1));
+    else if (type_decl == prim_string)
+        cls->cls_record.push_back(op_type(INT8_PTR)); 
+    else
+        cls->cls_record.push_back(op_type(type_decl->get_string(), 1));
+*/
+
+
+    operand main_retval(ret_type, "main.retval");
+    vp.call(*ct_stream, Mainmain_arg_types, "Main_main", 1, Mainmain_args, main_retval); 
+    
+/* 
 	// Call Main.main(). This returns int* for phase 1, Object for phase 2
     vector<op_type> mainmain_args_types;
     vector<operand> mainmain_args;
-    operand ret = vp.call(mainmain_args_types, i32_type, "Main_main", 1, mainmain_args);
-    
+    operand ret = vp.call(mainmain_args_types, i32_type, "Main_main", 1, mainmain_args);  
+*/    
     
 #ifndef MP3
 	// Get the address of the string "Main_main() returned %d\n" using
@@ -732,7 +808,10 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTable *ct)
     attr_tbl.enterscope();
     
     attr_index = 1; // account for vtable
-    mtd_index = 4;  // account for tag, ptrtoint, getelementptr, new 
+    mtd_index = 4;  // account for tag, ptrtoint, getelementptr, new
+    // for (int i = 0; i < mtd_index; i++) {
+    //     save_mtd(NULL); // FIXME save some placeholders, may need to update later
+    // } 
 }
 
 void CgenNode::add_child(CgenNode *n)
@@ -802,7 +881,7 @@ void CgenNode::layout_features()
     // cerr << val_const.get_type().get_id() << endl; 
     // global_value val_g(str_ptr_type, "str."+this->get_type_name(), val_const); 
     vp.init_constant(*(this->class_table->ct_stream), "str."+this->get_type_name(), val_const); // lacking align 1	
-    cerr << "after init_constant" << endl; // FIXME    
+    // cerr << "after init_constant" << endl; // FIXME    
 
     op_type i32_type(INT32), i8_ptr_type(INT8_PTR), obj_ptr_type("Object", 1);  
     // handle Object class
@@ -831,9 +910,9 @@ void CgenNode::layout_features()
         
     } else {
         // copy the class record of the parent while change the name of vtable
-        // cls_record = parentnd->cls_record;
-        // cls_record.erase(cls_record.begin());
-        cls_record.push_back(op_type(this->get_type_name()+std::string("_vtable"), 1));
+        cls_record = parentnd->cls_record;
+        cls_record.erase(cls_record.begin());
+        cls_record.insert(cls_record.begin(), op_type(this->get_type_name()+std::string("_vtable"), 1));
         // copy the vtable of the parent class
         vtable.push_back(i32_type);
         vtable_prototype.push_back(int_value(tag));
@@ -851,16 +930,20 @@ void CgenNode::layout_features()
         vtable.push_back(cls_new);
         vtable_prototype.push_back(const_value(op_type(get_type_name(),1), "@"+get_type_name()+"_new", 1));
         vtable_ptr.push_back(NULL); 
-        // go through the parents' feature list and add appropriate method signature
-        list_node<Feature> *pfl = nil_Features();
-        for (CgenNode *p = parentnd; p->get_type_name().compare("_no_class") != 0; p = p->parentnd) {
-            
-            pfl = pfl->append(p->features, pfl);
-            // pfl->dump(cout, 2); 
+        // go through the parents' method list and add appropriate method signaturei
+        for (method_class *mc : parentnd->get_mtd_vector()) {
+            mc->layout_feature(this);
+        }
+        /*
+        list_node<Feature> *pfl = parentnd->features; 
+        vector<CgenNode *> pnds; 
+        for (CgenNode *p = parentnd; p->get_type_name().compare("Object") != 0; p = p->parentnd) {
+            pnds.push_back(p); 
         }
         for (int k = pfl->first(); pfl->more(k); k = pfl->next(k)) {
             pfl->nth(k)->layout_feature(this);
         }        
+        */
         // go through the feature list, add attributes and methods into cls_record or vtable
 	    list_node<Feature> *fl = features;
         // fl->dump(cout,2); 
@@ -868,8 +951,8 @@ void CgenNode::layout_features()
             fl->nth(i)->layout_feature(this);
         }
     }
-    mtd_tbl.dump(); 
-    attr_tbl.dump();  
+    // mtd_tbl.dump(); 
+    // attr_tbl.dump();  
 }
 #else
 
@@ -1425,32 +1508,42 @@ void method_class::layout_feature(CgenNode *cls)
     if (cls->lookup_mtd(name) != NULL) {
         // detect its entry in vtable_prototype (in bitcast form) and reinsert it in normal form
         cls->vtable_prototype.erase(cls->vtable_prototype.begin()+*(cls->lookup_mtd(name)));
-        cls->vtable_prototype.insert(cls->vtable_prototype.begin()+*(cls->lookup_mtd(name)), const_value(ret, "@"+cls->get_type_name()+"_"+name->get_string(), 1)); 
+        cls->vtable_prototype.insert(cls->vtable_prototype.begin()+*(cls->lookup_mtd(name)), const_value(ret, "@"+cls->get_type_name()+"_"+name->get_string(), 1));
+        cls->vtable_ptr.at(*(cls->lookup_mtd(name))) = NULL;
+        cls->replace_mtd(this, *(cls->lookup_mtd(name)));  
     } else { // if a method is not found in vtable
         int *index = new int(cls->get_mtd_index()); // FIXME when to delete?  
         cls->add_mtd(name, index);
         cls->incre_mtd_index();
+        cls->save_mtd(this); 
         cls->vtable.push_back(t); 
         // check if it is a method of the paretn class
-        // if yes
+        // if yes, set appropriate precast_type and precast_name
         string precast_name; 
         if (cls->get_parentnd()->lookup_mtd(name) != NULL) {
             CgenNode *p = cls->get_parentnd();
-            cerr << cls->get_type_name() << endl;
+            // cerr << cls->get_type_name() << endl;
             op_type precast_type; 
             if ((p->get_type_name().compare("Object") == 0) || p->get_parentnd()->lookup_mtd(name) == NULL) {
                 precast_type.set_type(p->vtable.at(*(p->lookup_mtd(name)))); 
                 precast_name = "@"+p->get_type_name()+"_"+name->get_string(); 
             } else {
-                 cerr << cls->get_type_name() << endl;
-                cerr << name->get_string() << endl; 
-                 p->get_parentnd()->dump_mtd_tbl();
-                p->dump_vtable_ptr(); 
-                cerr << "after" << endl; 
-                 precast_type = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_precast_type(); // FIXME
-                 string precast_ret = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_typename();
-                 string precast_val = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_value(); 
-                 precast_name = precast_val.substr(10+precast_type.get_name().length(), precast_val.length()-15-precast_type.get_name().length()-precast_ret.length()); 
+                // cerr << cls->get_type_name() << endl;
+                // cerr << name->get_string() << endl; 
+                // p->get_parentnd()->dump_mtd_tbl();
+                // p->dump_vtable_ptr(); 
+                // cerr << "after" << endl;
+                const_value *cv = p->vtable_ptr.at(*(p->lookup_mtd(name)));
+                // if the method is overwritten in the parent class
+                if (cv == NULL) {
+                    precast_type.set_type(p->vtable.at(*(p->lookup_mtd(name))));
+                    precast_name = "@"+p->get_type_name()+"_"+name->get_string();
+                } else {
+                    precast_type= cv->get_precast_type(); // FIXME
+                    string precast_ret = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_typename();
+                    string precast_val = p->vtable_ptr.at(*(p->lookup_mtd(name)))->get_value(); 
+                    precast_name = precast_val.substr(10+precast_type.get_name().length(), precast_val.length()-15-precast_type.get_name().length()-precast_ret.length()); 
+                }
             }
             // vector<op_type> precast_args = args; 
             // precast_args.erase(precast_args.begin()); 
