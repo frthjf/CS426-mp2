@@ -103,6 +103,10 @@ class CgenNode : public class__class
 public:
 	enum Basicness
 	{ Basic, NotBasic };
+    vector<op_type> cls_record;
+    vector<op_type> vtable;
+    vector<const_value> vtable_prototype;
+    vector<const_value*> vtable_ptr;  
 
 #ifndef MP3
 	void codeGenMainmain();
@@ -119,9 +123,15 @@ private:
 	int max_child;
 
 
-	// ADD CODE HERE
+	// ADD CODE HERE 
 
-
+    // To store the name of attr/method and their index in cls_record/vtable
+    cool::SymbolTable<Symbol, int> mtd_tbl;
+    cool::SymbolTable<Symbol, int> attr_tbl;
+    int mtd_index;
+    int attr_index;
+    vector<method_class*> mtd; 
+    vector<attr_class*> attrs;  
 public:
 	// COMPLETE FUNCTIONS
 
@@ -146,7 +156,7 @@ public:
 	virtual ~CgenNode() { }
 
 	// Class setup. You need to write the body of this function.
-	void setup(int tag, int depth);
+	    void setup(int tag, int depth);
 
 	// Class codegen. You need to write the body of this function.
 	void code_class();
@@ -154,6 +164,53 @@ public:
 	// ADD CODE HERE
 	string get_type_name() { return string(name->get_string()); }
 
+    void add_attr(Symbol name, int *index) {
+        attr_tbl.addid(name, index); 
+    }
+    void add_mtd(Symbol name, int *index) { 
+        mtd_tbl.addid(name, index); 
+    }
+    void save_mtd(method_class *m) {
+        mtd.push_back(m);
+    }
+    void replace_mtd(method_class *m, int index) {
+        mtd.erase(mtd.begin()+index-4);
+        mtd.insert(mtd.begin()+index-4, m);
+    }
+    method_class *get_mtd(int index) {
+        return mtd.at(index-4);
+    } 
+    vector<method_class*> get_mtd_vector() {
+        return mtd; 
+    }
+    void save_attr(attr_class *a) {
+        attrs.push_back(a);
+    }
+    attr_class *get_attr(int index) {
+        return attrs.at(index-1);
+    }
+    void replace_attr(attr_class *a, int index) {
+        attrs.erase(attrs.begin()+index-1);
+        attrs.insert(attrs.begin()+index-1, a);
+    }
+    vector<attr_class*> get_attr_vector() {
+        return attrs;
+    }
+    int *lookup_mtd(Symbol name) { return mtd_tbl.lookup(name); } 
+    int *lookup_attr(Symbol name) { return attr_tbl.lookup(name); }
+
+    int get_mtd_index() { return mtd_index; }
+    int get_attr_index() { return attr_index; }
+    void incre_mtd_index() { mtd_index += 1; }
+    void incre_attr_index() { attr_index += 1; }
+
+    void dump_mtd_tbl() { mtd_tbl.dump(); }
+
+    void dump_vtable_ptr() { 
+        for (const_value *ptr : vtable_ptr) {
+            cerr << ptr << endl; 
+        }
+    }
 
 private:
 	// Layout the methods and attributes for code generation

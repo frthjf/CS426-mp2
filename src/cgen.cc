@@ -558,7 +558,7 @@ void StringEntry::code_def(ostream& s, CgenClassTable* ct)
 
     // print out @String.n = constant %String{...}
     string str_obj_name = "String."+std::to_string(index);
-    op_type str_obj_type("String", 1); 
+    op_type str_obj_type("String"); 
     global_value str_obj(str_obj_type, str_obj_name); 
  
     vector<op_type> types; 
@@ -910,9 +910,12 @@ void CgenNode::layout_features()
         
     } else {
         // copy the class record of the parent while change the name of vtable
-        cls_record = parentnd->cls_record;
-        cls_record.erase(cls_record.begin());
-        cls_record.insert(cls_record.begin(), op_type(this->get_type_name()+std::string("_vtable"), 1));
+        // cls_record = parentnd->cls_record;
+        // cls_record.erase(cls_record.begin());
+        // cls_record.insert(cls_record.begin(), op_type(this->get_type_name()+std::string("_vtable"), 1));
+        op_type vtable_type(this->get_type_name()+std::string("_vtable"), 1);
+        cls_record.push_back(vtable_type);
+        
         // copy the vtable of the parent class
         vtable.push_back(i32_type);
         vtable_prototype.push_back(int_value(tag));
@@ -933,6 +936,9 @@ void CgenNode::layout_features()
         // go through the parents' method list and add appropriate method signaturei
         for (method_class *mc : parentnd->get_mtd_vector()) {
             mc->layout_feature(this);
+        }
+        for (attr_class *a : parentnd->get_attr_vector()) {
+            a->layout_feature(this); 
         }
         /*
         list_node<Feature> *pfl = parentnd->features; 
@@ -1582,11 +1588,15 @@ void attr_class::layout_feature(CgenNode *cls)
 #else
 	// ADD CODE HERE
 	// check for inherited attributes
-	if (cls->lookup_attr(name) != NULL) { return; }
+	int *index = cls->lookup_attr(name);
+	if (index != NULL) { 
+        return; 
+    }
     else {
         int *index = new int(cls->get_attr_index()); 
         cls->add_attr(name, index);
         cls->incre_attr_index();
+        cls->save_attr(this); 
     }
 
     if (type_decl == prim_int || type_decl == Int) 
