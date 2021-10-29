@@ -32,6 +32,7 @@ class op_type {
 		op_type() : id(EMPTY), name(""){}
 		op_type(op_type_id i);
 		op_type(string n) : id(OBJ), name("%" + n) {}
+        op_type(string n, int ptr_level, bool no_percent);
 		op_type(string n, int ptr_level);
         op_type(bool sym_to_type, string str); // convert a Symbol to corresponding op_type  
 		op_type_id get_id() const { return id; }

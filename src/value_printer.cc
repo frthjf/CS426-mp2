@@ -1,5 +1,5 @@
 #include "value_printer.h"
-#include "cool-io.h"     // for cerr, <<, manipulators
+#include "cool-io.h"     // for cerr, <<, manipulators cerr not able to use
 #include <sstream>
 
 static int value_printer_counter = 0;
@@ -223,7 +223,7 @@ operand ValuePrinter::xor_in(operand op1, operand op2) {
  */
 void ValuePrinter::malloc_mem(ostream &o, int size, operand result) {
 	check_ostream(o);
-	o << "\t" + result.get_name() + " = call i8*  @malloc(i32 " << size << ")\n";
+	o << "\t" + result.get_name() + " = call i8*(i32)  @malloc(i32 " << size << ")\n";
 }
 
 operand ValuePrinter::malloc_mem(int size)
@@ -236,7 +236,7 @@ operand ValuePrinter::malloc_mem(int size)
 void ValuePrinter::malloc_mem(ostream &o, operand size, operand result)
 {
 	check_ostream(o);
-	o << "\t" + result.get_name() + " = call i8* @malloc(i32 " + size.get_name() + ")\n";
+	o << "\t" + result.get_name() + " = call i8*(i32) @malloc(i32 " + size.get_name() + ")\n";
 }
 
 operand ValuePrinter::malloc_mem(operand size)

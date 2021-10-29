@@ -89,10 +89,13 @@ void code(CgenEnvironment *env);
 
 
 #define method_EXTRAS			\
-virtual Symbol get_return_type() { return return_type; }
+virtual Symbol get_return_type() { return return_type; } 
+
+#define attr_EXTRAS             \
+virtual Symbol get_type_decl() { return type_decl; }
 
 #define Formal_EXTRAS                              \
-virtual Symbol get_type_decl() = 0;                /* ## */ \
+virtual Symbol get_type_decl() = 0;               /* ## */ \
 virtual Symbol get_name()      = 0;                /* ## */ \
 virtual void dump_with_types(ostream&,int) = 0;
 

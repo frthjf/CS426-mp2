@@ -187,7 +187,7 @@ public:
         attrs.push_back(a);
     }
     attr_class *get_attr(int index) {
-        return attrs.at(index-1);
+        return attrs[index-1];
     }
     void replace_attr(attr_class *a, int index) {
         attrs.erase(attrs.begin()+index-1);
@@ -239,6 +239,7 @@ private:
 	int block_count;
 	int tmp_count;
 	int ok_count;
+    int handle_attr; 
 
 	// ADD CODE HERE
 	CgenNode *cur_class;
@@ -272,6 +273,10 @@ public:
 	// Must return the CgenNode for a class given the symbol of its name
 	CgenNode *type_to_class(Symbol t);
 	// ADD CODE HERE
+	void set_handle_attr() { handle_attr = 1; }
+    void reset_handle_attr() { handle_attr = 0; }
+    int incre_handle_attr() { return handle_attr++; }
+    int get_handle_attr() { return handle_attr; }
 	
 };
 
@@ -282,3 +287,5 @@ operand conform(operand src, op_type dest_type, CgenEnvironment *env);
 // Retrieve the class tag from operand src. Argument is the cgen node for
 // the static class of src.
 operand get_class_tag(operand src, CgenNode *src_cls, CgenEnvironment *env);
+// Handle boxing and unboxing of int and bool
+operand box(operand src, op_type dest_type, CgenEnvironment *env); 

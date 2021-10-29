@@ -18,11 +18,65 @@ const char IO_string[] 		= "IO";
 const char default_string[]	= "";
 
 /* Class vtable prototypes */
-const Object_vtable Object_vtable_prototype = {
+const Object_vtable Object_vtable_prototype_rt = {
 	/* ADD CODE HERE */
+    0,
+    sizeof(Object_vtable), 
+    Object_string,
+    &Object_new, 
+    &Object_abort,
+    &Object_type_name,
+    &Object_copy 
 };
 
 /* ADD CODE HERE FOR MORE VTABLE PROTOTYPES */
+
+const Int_vtable Int_vtable_prototype_rt = {
+    1,
+    sizeof(Int_vtable),
+    Int_string,
+    &Int_new,
+    (Object* (*) (Int*))(&Object_abort),
+    (String* (*) (Int*))(&Object_type_name),
+    (Int* (*) (Int*))(&Object_copy)
+};
+
+const Bool_vtable Bool_vtable_prototype_rt = {
+    2, 
+    sizeof(Bool_vtable),
+    Bool_string,
+    &Bool_new,
+    (Object* (*) (Bool*))(&Object_abort),
+    (String* (*) (Bool*))(&Object_type_name),
+    (Bool* (*) (Bool*))(&Object_copy)
+};
+
+const String_vtable String_vtable_prototype_rt = {
+    3,
+    sizeof(String_vtable),
+    String_string,
+    &String_new,
+    (Object* (*) (String*))(&Object_abort),
+    (String* (*) (String*))(&Object_type_name),
+    (String* (*) (String*))(&Object_copy),
+    (int (*) (String*))(&String_length),
+    (String* (*) (String*, String*))(&String_concat),
+    (String* (*) (String*, int, int))(&String_substr)
+};
+
+const IO_vtable IO_vtable_prototype_rt = {
+    4,
+    sizeof(IO_vtable),
+    IO_string,
+    &IO_new,
+    (Object* (*) (IO*))(&Object_abort),
+    (String* (*) (IO*))(&Object_type_name),
+    (IO* (*) (IO*))(&Object_copy),
+    (IO* (*) (IO*, String*))(&IO_out_string),
+    (IO* (*) (IO*, int))(&IO_out_int),
+    (String* (*) (IO*))(&IO_in_string),
+    (int (*) (IO*))(&IO_in_int)
+};
 
 
 /*
@@ -49,6 +103,18 @@ const String* Object_type_name(Object *self)
 
 
 /* ADD CODE HERE FOR MORE METHODS OF CLASS OBJECT */
+Object *Object_new(void) {
+    Object *new_obj = malloc(sizeof(Object)); 
+    new_obj->vtblptr = &Object_vtable_prototype_rt; 
+    return new_obj;
+}
+
+Object *Object_copy(Object *self) {
+    int size = self->vtblptr->size;
+    void *copy = malloc(size);
+    memcpy(copy, self, size);
+    return copy; 
+}    
 
 
 /*
@@ -157,10 +223,68 @@ int IO_in_int(IO *self)
 	return x;
 }
 
-
 /* ADD CODE HERE FOR MORE METHODS OF CLASS IO */
+
+IO *IO_new(void) {
+    IO *new_io = malloc(sizeof(IO));
+    new_io->vtblptr = &IO_vtable_prototype_rt;
+    return new_io;
+}
 
 
 /* ADD CODE HERE FOR METHODS OF OTHER BUILTIN CLASSES */
 
+/* methods in Int class */
+Int *Int_new(void) {
+    Int *new_int = malloc(sizeof(Int));
+    new_int->vtblptr = &Int_vtable_prototype_rt;
+    new_int->val = 0; 
+    return new_int; 
+}
+
+void Int_init(Int *self, int val) {
+    self->val = val;
+}
+
+/* methods in Bool class */
+Bool *Bool_new(void) {
+    Bool *new_bool = malloc(sizeof(Bool));
+    new_bool->vtblptr = &Bool_vtable_prototype_rt;
+    new_bool->val = false;
+    return new_bool;
+}
+
+void Bool_init(Bool *self, bool val) {
+    self->val = val;
+}
+
+/* methods in class String */
+String *String_new(void) {
+    String *new = malloc(sizeof(String));
+    new->vtblptr = &String_vtable_prototype_rt;
+    new->val = "";
+    return new;
+}
+
+int String_length(String *self) {
+    return strlen(self->val);
+}
+
+String *String_concat(String *self, String *other) {
+    String *concated = malloc(sizeof(String));
+    memcpy(concated, self, sizeof(String)); 
+    strcat(concated->val, other->val); 
+    return concated;
+}
+
+String *String_substr(String *self, int start, int len) {
+    if (start < 0 || start+len > strlen(self->val)) {
+		fprintf(stderr, "At __FILE__(line __LINE__): String_substr Out of Range\n");
+		abort();
+	}  
+    String *substr = malloc(sizeof(String));
+    memcpy(substr, self, sizeof(String));
+    memcpy(substr->val, &self->val[start], len); 
+    return substr;
+}
 

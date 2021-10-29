@@ -64,7 +64,26 @@ op_type::op_type(string n, int ptr_level) {
 
 	if (ptr_level > 2 || ptr_level < 0)
 		assert(0 && "Invalid pointer level");
-}	
+}
+
+// to remove the % before function pointer pointer
+op_type::op_type(string n, int ptr_level, bool no_percent) {
+    name = n; 
+	id = EMPTY;
+	// Pointer to an object
+	if (ptr_level == 1) {
+		name += "*";
+		id = EMPTY;
+	}
+	// Pointer to a pointer to an object;
+	if (ptr_level == 2) {
+		id = EMPTY;
+		name += "**";
+	}
+
+	if (ptr_level > 2 || ptr_level < 0)
+		assert(0 && "Invalid pointer level");
+}
 
 
 op_type::op_type(bool sym_to_str, string str) {
