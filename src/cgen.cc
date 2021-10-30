@@ -426,7 +426,7 @@ void CgenClassTable::install_classes(Classes cs)
 // 
 void CgenClassTable::install_class(CgenNode *nd)
 {
-	Symbol name = nd->get_name(); // FIXME where is the get_name() method of CgenNode?
+	Symbol name = nd->get_name(); 
 
 	if (probe(name))
 		return;
@@ -805,9 +805,6 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTable *ct)
     
     attr_index = 1; // account for vtable
     mtd_index = 4;  // account for tag, ptrtoint, getelementptr, new
-    // for (int i = 0; i < mtd_index; i++) {
-    //     save_mtd(NULL); // FIXME save some placeholders, may need to update later
-    // } 
 }
 
 void CgenNode::add_child(CgenNode *n)
@@ -937,14 +934,8 @@ void CgenNode::layout_features()
 	// create str.Class constant
 	ValuePrinter vp; 
     op_arr_type str_type(INT8, this->get_type_name().length()+1);
-    // op_arr_ptr_type str_ptr_type(INT8, this->get_type_name().length()+1);
     const_value val_const(str_type, this->get_type_name(), 1);
-    // cerr << val_const.get_value() << endl;
-    // cerr << val_const.get_typename() << endl; 
-    // cerr << val_const.get_type().get_id() << endl; 
-    // global_value val_g(str_ptr_type, "str."+this->get_type_name(), val_const); 
     vp.init_constant(*(this->class_table->ct_stream), "str."+this->get_type_name(), val_const); // lacking align 1	
-    // cerr << "after init_constant" << endl; // FIXME    
 
     op_type i32_type(INT32), i8_ptr_type(INT8_PTR), obj_ptr_type("Object", 1);  
     // handle Object class
@@ -973,9 +964,6 @@ void CgenNode::layout_features()
         
     } else {
         // copy the class record of the parent while change the name of vtable
-        // cls_record = parentnd->cls_record;
-        // cls_record.erase(cls_record.begin());
-        // cls_record.insert(cls_record.begin(), op_type(this->get_type_name()+std::string("_vtable"), 1));
         op_type vtable_type(this->get_type_name()+std::string("_vtable"), 1);
         cls_record.push_back(vtable_type);
         
@@ -1003,16 +991,6 @@ void CgenNode::layout_features()
         for (attr_class *a : parentnd->get_attr_vector()) {
             a->layout_feature(this); 
         }
-        /*
-        list_node<Feature> *pfl = parentnd->features; 
-        vector<CgenNode *> pnds; 
-        for (CgenNode *p = parentnd; p->get_type_name().compare("Object") != 0; p = p->parentnd) {
-            pnds.push_back(p); 
-        }
-        for (int k = pfl->first(); pfl->more(k); k = pfl->next(k)) {
-            pfl->nth(k)->layout_feature(this);
-        }        
-        */
         // go through the feature list, add attributes and methods into cls_record or vtable
 	    list_node<Feature> *fl = features;
         // fl->dump(cout,2); 
@@ -1195,75 +1173,25 @@ operand box(operand src, op_type type, CgenEnvironment *env) {
 // It should only be called when this condition holds.
 // (It's needed by the supplied code for typecase)
 operand conform(operand src, op_type type, CgenEnvironment *env) {
-	// ADD CODE HERE (MP3 ONLY)
-	ValuePrinter vp; 
-/*
-    // boxing
-	if (type.is_int_object()) {
-        // Create a new Int object
-        operand ptr(type, env->new_name()); 
-        vector<op_type> new_arg_types;
-        vector<operand> new_args; 
-        vp.call(*(env->cur_stream), new_arg_types, "Int_new", 1, new_args, ptr);
+	// if the types match, no need to cast
+    if (src.get_typename().compare(type.get_name()) == 0) return src; 
+    // boxing i32 or i1
+	if ((src.get_typename().compare("i32") == 0 && type.is_int_object()) || 
+        (src.get_typename().compare("i1") == 0 && type.is_bool_object())) {
+        return box(src, type, env);
+    }
+    // box i32 and i1 before casting 
+    operand precast_obj; 
+    if (src.get_typename().compare("i32") == 0) { 
+        precast_obj = box(src, op_type("Int", 1), env);
+    } else if (src.get_typename().compare("i1") == 0) {	
+        precast_obj = box(src, op_type("Bool", 1), env);
+    } else precast_obj = src; 
 
-        // Initialize the Int object
-        vector<op_type> init_arg_types;
-        init_arg_types.push_back(type);
-        init_arg_types.push_back(op_type(INT32)); 
-        vector<operand> init_args; 
-        init_args.push_back(ptr); 
-        init_args.push_back(src);
-        operand ret(op_type(VOID), env->new_name()); 
-        vp.call(*(env->cur_stream), init_arg_types, "Int_init", 1, init_args, ret);
-        return ptr; 
-    } else if (type.is_bool_object()) {
-        operand ptr(type, env->new_name()); 
-        vector<op_type> new_arg_types;
-        vector<operand> new_args; 
-        vp.call(*(env->cur_stream), new_arg_types, "Bool_new", 1, new_args, ptr); 
-
-        // Initialize the Bool object
-        vector<op_type> init_arg_types;
-        init_arg_types.push_back(type);
-        init_arg_types.push_back(op_type(INT1)); 
-        vector<operand> init_args; 
-        init_args.push_back(ptr); 
-        init_args.push_back(src);
-        operand ret(op_type(VOID), env->new_name()); 
-        vp.call(*(env->cur_stream), init_arg_types, "Bool_init", 1, init_args, ret); 
-        return ptr;    
-    } else if (type.get_name().compare("i32") == 0) { // unboxing 
-        // Get a i32 ptr
-        op_type int_type("Int"); 
-        op_type i32_ptr_type(INT32_PTR);
-        operand i32_ptr(i32_ptr_type, env->new_name()); 
-        vp.getelementptr(*(env->cur_stream), int_type, src, int_value(0), int_value(1), i32_ptr); 
-
-        // Load the i32 val
-        op_type i32_type(INT32);
-        operand i32_val(i32_type, env->new_name());
-        vp.load(*(env->cur_stream), i32_type, i32_ptr, i32_val);
-        return i32_val;  
-    } else if (type.get_name().compare("i1") == 0) {
-        // Get a i1 ptr
-        op_type bool_type("Bool"); 
-        op_type i1_ptr_type(INT1_PTR);
-        operand i1_ptr(i1_ptr_type, env->new_name()); 
-        vp.getelementptr(*(env->cur_stream), bool_type, src, int_value(0), int_value(1), i1_ptr); 
-
-        // Load the i1 val
-        op_type i1_type(INT1);
-        operand i1_val(i1_type, env->new_name());
-        vp.load(*(env->cur_stream), i1_type, i1_ptr, i1_val);
-        return i1_val; 
-    } else 
-{ }
-*/
-        if (src.get_typename().compare(type.get_name()) != 0) {
-            operand postcast_obj(type, env->new_name());
-            vp.bitcast(*(env->cur_stream), src, type, postcast_obj); 
-            return postcast_obj; 
-        } else return src; 
+    ValuePrinter vp; 
+    operand postcast_obj(type, env->new_name());
+    vp.bitcast(*(env->cur_stream), precast_obj, type, postcast_obj); 
+    return postcast_obj; 
     
 }
 
@@ -1273,7 +1201,30 @@ operand conform(operand src, op_type type, CgenEnvironment *env) {
 // You need to look up and return the class tag for it's dynamic value
 operand get_class_tag(operand src, CgenNode *src_cls, CgenEnvironment *env) {
 	// ADD CODE HERE (MP3 ONLY)
-	return operand();
+	ValuePrinter vp;
+
+    // get vtable ptr ptr
+	string static_type_str = src_cls->get_type_name();
+    op_type static_type(static_type_str);
+    op_type vtable_ptr_ptr_type(static_type_str+string("_vtable"), 2); 
+    operand vtable_ptr_ptr(vtable_ptr_ptr_type, env->new_name()); 
+    vp.getelementptr(*(env->cur_stream), static_type, src, int_value(0), int_value(0), vtable_ptr_ptr);
+
+    // get vtable ptr
+    op_type vtable_ptr_type(static_type_str+string("_vtable"), 1);
+    operand vtable_ptr(vtable_ptr_type, env->new_name());
+    vp.load(*(env->cur_stream), vtable_ptr_type, vtable_ptr_ptr, vtable_ptr); 
+
+    // get tag pointer
+    op_type vtable_type(static_type_str+string("_vtable"));
+    operand tag_ptr(op_type(INT32_PTR), env->new_name());
+    vp.getelementptr(*(env->cur_stream), vtable_type, vtable_ptr, int_value(0), int_value(0), tag_ptr);
+
+    // get tag
+    operand tag(op_type(INT32), env->new_name());
+    vp.load(*(env->cur_stream), op_type(INT32), tag_ptr, tag); 
+
+	return tag;
 }
 #endif
 
@@ -1307,6 +1258,8 @@ void method_class::code(CgenEnvironment *env)
     // every method (except new) has an implicit self argument
     operand self_obj(class_type, "self");
     args.push_back(self_obj);
+
+    
       
     for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
         Formal formal = formals->nth(i);
@@ -1319,6 +1272,7 @@ void method_class::code(CgenEnvironment *env)
             arg_type = op_type(1, arg_type_sym->get_string());
         operand arg(arg_type, formal->get_name()->get_string());  
         args.push_back(arg);
+
     } 
     string method_name = class_name+"_"+name->get_string(); 
     vp.define(ret_type, method_name, args);
@@ -1331,10 +1285,33 @@ void method_class::code(CgenEnvironment *env)
     operand self_ptr(self_ptr_type, env->new_name());
     vp.alloca_mem(*(env->cur_stream), class_type, self_ptr);
     vp.store(self_obj, self_ptr);
-    
+
     // Since self is not in attributes, we treat it as a global variable
     // i.e. with highest scope, in a method
     env->add_local(self, self_ptr);
+
+    operand arg;
+    operand arg_ptr; // to fix garbage code FIXME why?  
+    for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
+        Formal formal = formals->nth(i);
+        // set up argument type
+        Symbol arg_type_sym = formal->get_type_decl();
+        op_type arg_type;
+        if (string(arg_type_sym->get_string()).compare("SELF_TYPE") == 0)
+            arg_type = class_type; 
+        else 
+            arg_type = op_type(1, arg_type_sym->get_string());
+        arg = operand(arg_type, formal->get_name()->get_string());  
+
+        arg_ptr = operand(arg_type.get_ptr_type(), env->new_name()); 
+        vp.alloca_mem(*(env->cur_stream), arg_type, arg_ptr);
+        vp.store(arg, arg_ptr);
+        string name_str = formal->get_name()->get_string();
+        int name_length = name_str.size();
+        char name_ptr[name_length];
+        strcpy(name_ptr, name_str.c_str());
+        env->add_local(idtable.add_string(name_ptr), arg_ptr); 
+    }    
 
     // Code generation for the method body
     operand ret_value = expr->code(env);
@@ -1343,7 +1320,7 @@ void method_class::code(CgenEnvironment *env)
     if (return_type != Int && return_type != Bool) {
         int length = ret_value.get_typename().length(); 
         string ret_value_type = ret_value.get_typename().substr(0, length-1); 
-        if (ret_value_type.compare(return_type->get_string()) != 0) {
+        if (ret_value_type.compare(return_type->get_string()) != 0 && return_type != SELF_TYPE) {
             ret_value = conform(ret_value, op_type(return_type->get_string(), 1), env);
         }
     }
@@ -1473,7 +1450,7 @@ operand cond_class::code(CgenEnvironment *env)
     ret_ptr = operand(ret_type.get_ptr_type(), env->new_name());  
 
     // Allocate stack for return value
-    vp.alloca_mem(*(env->cur_stream), ret_type, ret_ptr);  
+    vp.alloca_mem(*(env->cur_stream), ret_type, ret_ptr); 
     // Generate code for predictive
     operand pred_op = pred->code(env);
     // Check for Bool object
@@ -1495,10 +1472,12 @@ operand cond_class::code(CgenEnvironment *env)
         then_op = box(then_op, op_type(INT1), env);
     // Check if then type conforms to ret type 
     operand casted_then_op;
-    if (then_op.get_typename().compare(ret_type.get_name()) != 0) {
+    casted_then_op = conform(then_op, ret_type, env);  
+/*  if (then_op.get_typename().compare(ret_type.get_name()) != 0) {
         casted_then_op = operand(ret_type, env->new_name()); 
         vp.bitcast(*(env->cur_stream), then_op, ret_type, casted_then_op);
     } else casted_then_op = then_op;
+*/
     vp.store(casted_then_op, ret_ptr);
     vp.branch_uncond(end_label);  
     // Construct 'else' block 
@@ -1509,10 +1488,13 @@ operand cond_class::code(CgenEnvironment *env)
     if (else_op.get_type().is_bool_object())
         else_op = box(else_op, op_type(INT1), env);
     operand casted_else_op;
+    casted_else_op = conform(else_op, ret_type, env);
+/*
     if (else_op.get_typename().compare(ret_type.get_name()) != 0) {
         casted_else_op = operand(ret_type, env->new_name()); 
         vp.bitcast(*(env->cur_stream), else_op, ret_type, casted_else_op);
     } else casted_else_op = else_op; 
+*/ 
     vp.store(casted_else_op, ret_ptr);
     // Start 'end' block
     vp.branch_uncond(end_label);
@@ -2105,11 +2087,81 @@ operand typcase_class::code(CgenEnvironment *env)
 #ifndef MP3
 	assert(0 && "Unsupported case for phase 1");
 #else
-	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
-	// MORE MEANINGFUL
-	
+    ValuePrinter vp(*env->cur_stream);
+    CgenClassTable *ct = env->get_class()->get_classtable();
+
+    string header_label = env->new_label("case.hdr.", false);
+    string exit_label = env->new_label("case.exit.", false);
+    
+    // Generate code for expression to select on, and get its static type
+    operand code_val = expr->code(env);
+    operand expr_val = code_val;
+    string code_val_t = code_val.get_typename();
+    op_type join_type = env->type_to_class(type)->get_type_name();
+    CgenNode *cls = env->type_to_class(expr->get_type());
+
+    // Check for case on void, which gives a runtime error
+    if (code_val.get_type().get_id() != INT32_PTR && code_val.get_type().get_id() != INT1_PTR) {
+        op_type bool_type(INT1), empty_type;
+        null_value null_op(code_val.get_type());
+        operand icmp_result(bool_type, env->new_name());
+        vp.icmp(*env->cur_stream, EQ, code_val, null_op, icmp_result);
+        string ok_label = env->new_ok_label();
+        vp.branch_cond(icmp_result, "abort", ok_label);
+	vp.begin_block(ok_label);
+    }
+    
+    operand tag = get_class_tag(expr_val, cls, env);
+    vp.branch_uncond(header_label);
+    string prev_label = header_label;
+    vp.begin_block(header_label);
+    
+    // Get result type of case expression
+    branch_class *b = (branch_class *)cases->nth(cases->first());
+    string case_result_type = b->get_expr()->get_type()->get_string();
+    if (case_result_type == "SELF_TYPE")
+        case_result_type = env->get_class()->get_type_name();
+
+    // Allocate space for result of case expression
+    op_type alloca_type(case_result_type, 1);
+    operand alloca_final(alloca_type, env->new_name());
+    env->branch_operand = alloca_final;
+    vp.alloca_mem(*env->cur_stream, alloca_type, alloca_final);
+    
+    std::vector<operand> values;
+    env->next_label = exit_label;
+    
+    // Generate code for the branches
+    for (int i=ct->get_num_classes()-1; i >= 0; --i) {
+        for (int j=cases->first(); cases->more(j); j = cases->next(j)) {
+            if (i == ct->lookup(cases->nth(j)->get_type_decl())->get_tag()) {
+                string prefix = string("case.") + itos(i) + ".";
+                string case_label = env->new_label(prefix, false);
+                vp.branch_uncond(case_label);
+		vp.begin_block(case_label);
+                operand val = cases->nth(j)->code(expr_val, tag,
+                                                  join_type, env);
+                values.push_back(val);
+            }
+        }
+    }
+
+    // Abort if there was not a branch covering the actual type
+    vp.branch_uncond("abort");
+    
+    // Done with case expression: get final result
+    env->new_label("", true);
+    vp.begin_block(exit_label);
+    operand final_result(alloca_type, env->new_name());
+    alloca_final.set_type(alloca_final.get_type().get_ptr_type());
+    vp.load(*env->cur_stream, alloca_final.get_type().get_deref_type(), alloca_final, 
+            final_result);
+    alloca_final.set_type(alloca_final.get_type().get_deref_type());
+ 
+    if (cgen_debug)
+        cerr << "Done typcase::code()" << endl;
+    return final_result;	
 #endif
-	return operand();
 }
 
 operand new__class::code(CgenEnvironment *env) 
@@ -2120,18 +2172,26 @@ operand new__class::code(CgenEnvironment *env)
 #else
 	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
 	// MORE MEANINGFUL
-    op_type type; 
-    if (type_name == Int) 
+    op_type type;
+    string type_name_str;  
+    if (type_name == Int) {
         type.set_type(op_type("Int", 1));
-    else if (type_name == Bool)
+        type_name_str = string("Int");
+    } else if (type_name == Bool) {
         type.set_type(op_type("Bool", 1));  
-    else
-        type.set_type(op_type(type_name->get_string(), 1)); 
+        type_name_str = string("Bool");
+    } else if (type_name == SELF_TYPE) {
+        type_name_str = env->get_class()->get_type_name();
+        type = op_type(type_name_str, 1); 
+    } else {
+        type_name_str = type_name->get_string();
+        type = op_type(type_name_str, 1); 
+    }
     operand new_obj(type, env->new_name());
     ValuePrinter vp;
     vector<op_type> new_arg_types;
     vector<operand> new_args; 
-    vp.call(*(env->cur_stream), new_arg_types, type_name->get_string()+string("_new"), 1, new_args, new_obj);
+    vp.call(*(env->cur_stream), new_arg_types, type_name_str+string("_new"), 1, new_args, new_obj);
     return new_obj; 
 #endif
 }
@@ -2217,11 +2277,6 @@ void method_class::layout_feature(CgenNode *cls)
                 precast_type.set_type(p->vtable.at(*(p->lookup_mtd(name)))); 
                 precast_name = "@"+p->get_type_name()+"_"+name->get_string(); 
             } else {
-                // cerr << cls->get_type_name() << endl;
-                // cerr << name->get_string() << endl; 
-                // p->get_parentnd()->dump_mtd_tbl();
-                // p->dump_vtable_ptr(); 
-                // cerr << "after" << endl;
                 const_value *cv = p->vtable_ptr.at(*(p->lookup_mtd(name)));
                 // if the method is overwritten in the parent class
                 if (cv == NULL) {
@@ -2234,10 +2289,6 @@ void method_class::layout_feature(CgenNode *cls)
                     precast_name = precast_val.substr(10+precast_type.get_name().length(), precast_val.length()-15-precast_type.get_name().length()-precast_ret.length()); 
                 }
             }
-            // vector<op_type> precast_args = args; 
-            // precast_args.erase(precast_args.begin()); 
-            // precast_args.insert(precast_args.begin(), op_type(p->get_type_name(), 1)); 
-            // op_func_type precast_type(ret,
             casted_value *casted_ptr = new casted_value(t, precast_name, precast_type);
             cls->vtable_prototype.push_back(*(casted_ptr));
             cls->vtable_ptr.push_back(casted_ptr);  
@@ -2259,8 +2310,76 @@ operand branch_class::code(operand expr_val, operand tag,
 #else
 	// ADD CODE HERE AND REPLACE "return operand()" WITH SOMETHING 
 	// MORE MEANINGFUL
+	operand empty;
+    ValuePrinter vp(* env->cur_stream);
+    if  (cgen_debug)
+        cerr << "In branch_class::code()" << endl;
+
+    CgenNode *cls = env->get_class()->get_classtable()->lookup(type_decl);
+    int my_tag = cls->get_tag();
+    int max_child = cls->get_max_child();
+
+    // Generate unique labels for branching into >= branch tag and <= max child
+    string sg_label =
+        env->new_label(string("src_gte_br") + "." + itos(my_tag) + ".", false);
+    string sl_label =
+        env->new_label(string("src_lte_mc") + "." + itos(my_tag) + ".", false);
+    string exit_label =
+        env->new_label(string("br_exit") + "." + itos(my_tag) + ".", false);
+
+    int_value my_tag_val(my_tag);
+    op_type old_tag_t(tag.get_type()), i32_t(INT32);
+    tag.set_type(i32_t);
+
+    // Compare the source tag to the class tag
+    operand icmp_result = vp.icmp(LT, tag, my_tag_val);
+    vp.branch_cond(icmp_result, exit_label, sg_label);    
+    vp.begin_block(sg_label);
+    int_value max_child_val(max_child);
+
+    // Compare the source tag to max child
+    operand icmp2_result = vp.icmp(GT, tag, max_child_val);
+    vp.branch_cond(icmp2_result, exit_label, sl_label);
+    vp.begin_block(sl_label);
+    tag.set_type(old_tag_t);
+
+    // Handle casts of *arbitrary* types to Int or Bool.  We need to:
+    // (a) cast expr_val to boxed type (struct Int* or struct Bool*)
+    // (b) unwrap value field from the boxed type
+    // At run-time, if source object is not Int or Bool, this will never
+    // be invoked (assuming no bugs in the type checker).
+    if (cls->get_type_name() == "Int" || cls->get_type_name() == "Bool") {
+        op_type lbl_t(cls->get_type_name(), 1);
+        expr_val = conform(expr_val, lbl_t, env);
+    }
+    
+    // If the case expression is of the right type, make a new local
+    // variable for the type-casted version of it, which can be used
+    // within the expression to evaluate on this branch.
+    op_type alloc_type(cls->get_type_name(), 1);
+    operand alloc_op = vp.alloca_mem(alloc_type);
+    operand conf_result = conform(expr_val, alloc_type,  env);
+    vp.store(conf_result, alloc_op);
+    env->add_local(name, alloc_op);
+    
+    // Generate code for the expression to evaluate on this branch
+    operand val = conform(expr->code(env), join_type.get_ptr_type(), env);
+    operand conformed = conform(val, env->branch_operand.get_type(), env);
+    env->branch_operand.set_type(env->branch_operand.get_type()
+                                                    .get_ptr_type());
+    // Store result of the expression evaluated
+    vp.store(conformed, env->branch_operand);
+    env->branch_operand.set_type(env->branch_operand.get_type()
+                                                    .get_deref_type());
+    env->kill_local();
+    // Branch to case statement exit label
+    vp.branch_uncond(env->next_label);
+    vp.begin_block(exit_label);
+    if (cgen_debug)
+        cerr << "Done branch_class::code()" << endl;
+    return conformed;
+ 
 #endif
-	return operand();
 }
 
 // Assign this attribute a slot in the class structure
